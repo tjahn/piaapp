@@ -6,12 +6,13 @@ import 'package:collection/collection.dart';
 import 'package:fftea/fftea.dart';
 import 'package:flutter/material.dart';
 import 'package:moving_average/moving_average.dart';
+import 'package:piaapp/main.dart';
 
 import '../utils/SoundRecorder.dart';
 
 final simpleMovingAverage = MovingAverage<double>(
   averageType: AverageType.simple,
-  windowSize: 5,
+  windowSize: 2,
   partialStart: true,
   getValue: (double n) => n,
   add: (List<double> data, num value) => 1.0 * value,
@@ -121,12 +122,12 @@ class RecordSoundSampleState extends State<RecordSoundSample> {
         res[i] /= recordings.length;
       }
 
-      final median = (List.of(res)..sort())[(res.length * 0.75).toInt()];
+      final median = (List.of(res)..sort())[(res.length * 0.85).toInt()];
       for (int i = 0; i < res.length; ++i) {
         res[i] = max(0, res[i] - median);
       }
 
-      for (int i = 0; i < 50; ++i) {
+      for (int i = 0; i < ignoreLowestFreqs; ++i) {
         res[i] = 0;
       }
 
