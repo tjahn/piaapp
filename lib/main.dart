@@ -68,7 +68,11 @@ class _MyAppState extends State<MyApp> {
   }
 
   void onStart() {
-    closing = true;
+    setState(() {
+      closing = true;
+      comparisons = List.empty();
+      rawComparisons = List.empty();
+    });
   }
 
   void onNewSample(List<double>? sample) {
