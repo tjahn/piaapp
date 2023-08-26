@@ -3,7 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>NSMicrophoneUsageDescription</key>
+<<<<<<< Updated upstream
     <string>We need to access to the microphone to record audio files</string>
+=======
+    <string>WPe need to access to the microphone to record audio file</string>
+>>>>>>> Stashed changes
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
