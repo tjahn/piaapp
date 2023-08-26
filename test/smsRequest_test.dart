@@ -8,11 +8,7 @@ void main() {
 
     test('sendPostRequest returns successfully', () async {
       final phoneNumber = '+41792703030';
-      final expectedUrl = Uri.parse('https://xyycvixsvh.execute-api.eu-central-1.amazonaws.com/Prod/sms');
-      final expectedHeaders = {'Content-Type': 'application/json'};
-      final expectedBody = '{"phonenumber":"$phoneNumber"}';
-
-      final response = await SmsRequest.send(phoneNumber);
+      final response = await SmsRequest().send(phoneNumber);
     });
   });
 }
