@@ -105,7 +105,7 @@ class _MyAppState extends State<MyApp> {
 
     final smoothSmall = simpleMovingAverageSmall(nextRawComparisons);
 
-    final fireSignalDetected = (comparisons.lastOrNull ?? 0) > 500e3;
+    final fireSignalDetected = (comparisons.lastOrNull ?? 0) > 1e9;
 
     setState(() {
       this.scan = scan ?? List.empty();
