@@ -5,11 +5,13 @@ import 'dart:typed_data';
 import 'package:async/async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter_audio_waveforms/flutter_audio_waveforms.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:moving_average/moving_average.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:fftea/fftea.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 Stream<Int16List> chunkStream(Stream<Int16List> source, int chunkSize) async* {
   final reader = ChunkedStreamReader(source);
@@ -22,7 +24,7 @@ Stream<Int16List> chunkStream(Stream<Int16List> source, int chunkSize) async* {
   }
 }
 
-const chunkSize = 2048;
+const chunkSize = 1024;
 
 final fft = FFT(chunkSize);
 final fftWindow = Window.hanning(chunkSize);
@@ -30,10 +32,10 @@ final stft = STFT(chunkSize, fftWindow);
 
 final simpleMovingAverageSmall = MovingAverage<double>(
   averageType: AverageType.simple,
-  windowSize: 10,
+  windowSize: 5,
   partialStart: true,
-  getValue: (num n) => n,
-  add: (List<num> data, num value) => 1.0 * value,
+  getValue: (double n) => n,
+  add: (List<double> data, num value) => 1.0 * value,
 );
 void main() => runApp(const MyApp());
 
@@ -69,7 +71,7 @@ class MyRecorder {
       toStream: recordingDataController.sink,
       codec: Codec.pcm16,
       numChannels: 1,
-      sampleRate: 16000,
+      sampleRate: 8000,
     );
 
     return chunkedReader;
@@ -85,6 +87,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   final recorder = MyRecorder();
+
+  final ignoreLowestFreqs = 200;
 
   Float64List? sample;
   Float64List? spec;
@@ -130,27 +134,24 @@ class _MyAppState extends State<MyApp> {
                     }
                   }
 
-                  final median = (List.of(spec)
-                        ..sort((a, b) => a.compareTo(b)))[
-                      (spec.length * 0.25).toInt()];
+                  final median =
+                      (List.of(spec)..sort())[(spec.length * 0.6).toInt()];
+
                   for (int i = 0; i < spec.length; ++i) {
-                    spec[i] -= median;
+                    spec[i] = max(0, spec[i] - median);
                   }
 
-                  for (int i = 0; i < 100; ++i) {
+                  for (int i = 0; i < ignoreLowestFreqs; ++i) {
                     spec[i] = 0;
                   }
 
-                  double sigma = 0;
-                  for (int i = 0; i < spec.length; ++i) {
-                    sigma += spec[i] * spec[i];
-                  }
-                  sigma = sqrt(sigma / spec.length);
-                  sigma = 1;
+                  var energy = spec.fold(0.0, (a, b) => a + b * b);
+                  energy = sqrt(energy / spec.length);
 
                   for (int i = 0; i < spec.length; ++i) {
-                    spec[i] /= sigma * 0.01;
+                    spec[i] /= max(0, energy);
                   }
+
                   setState(() {
                     sample = spec;
                   });
@@ -164,10 +165,7 @@ class _MyAppState extends State<MyApp> {
                 onPressed: () async {
                   final chunkedReader = await recorder.start();
 
-                  int counter = 0;
                   chunkedReader.listen((event) {
-                    counter++;
-                    if (counter % 2 != 0) return;
                     final d = event.buffer.asInt16List();
                     stft.run(d.map((e) => 1.0 * e).toList(), (p0) {
                       final data = p0.discardConjugates().magnitudes();
@@ -175,28 +173,26 @@ class _MyAppState extends State<MyApp> {
                       final s = sample;
                       double v = 0;
                       if (s != null) {
-                        int offet = 100;
                         double m0 = 0;
-                        for (int i = 0; i < data.length; ++i) {
+                        for (int i = ignoreLowestFreqs; i < data.length; ++i) {
                           m0 += data[i];
                         }
-                        m0 /= (data.length - offet);
+                        m0 /= (data.length - ignoreLowestFreqs);
 
                         double v2 = 0;
-                        for (int i = offet; i < data.length; ++i) {
+                        for (int i = ignoreLowestFreqs; i < data.length; ++i) {
                           v2 += data[i] * data[i];
                         }
-                        v2 = sqrt(v2 / data.length);
+                        v2 = sqrt(v2 / (data.length - ignoreLowestFreqs));
 
-                        for (int i = offet; i < data.length; ++i) {
+                        for (int i = ignoreLowestFreqs; i < data.length; ++i) {
                           v += (data[i] - m0) * s[i];
                         }
-                        v /= (data.length - offet);
-                        v /= v2;
+                        v /= (data.length - ignoreLowestFreqs);
                       }
 
                       final nextRawComparisons = rawComparisons.sublist(
-                          max(0, rawComparisons.length - 200),
+                          max(0, rawComparisons.length - ignoreLowestFreqs),
                           rawComparisons.length)
                         ..add(v);
 
@@ -207,6 +203,7 @@ class _MyAppState extends State<MyApp> {
                         spec = data;
                         rawComparisons = nextRawComparisons;
                         comparisons = smoothSmall;
+                        active = (comparisons.lastOrNull ?? 0) > 200;
                       });
                     });
                   });
@@ -226,26 +223,41 @@ class _MyAppState extends State<MyApp> {
               ),
             ),
             if (sample != null)
-              PolygonWaveform(
-                samples: sample!,
-                height: 100,
-                width: MediaQuery.of(context).size.width,
-              ),
-            if (spec != null)
-              Container(
-                color: Color.fromRGBO(0, 0, 0, 0.1),
-                child: PolygonWaveform(
-                  samples: spec!,
-                  height: 150,
-                  width: MediaQuery.of(context).size.width,
+              Expanded(
+                child: LineChart(
+                  LineChartData(
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: sample!
+                            .mapIndexed(
+                                (index, v) => FlSpot(index.toDouble(), v))
+                            .toList(),
+                        isCurved: false,
+                        dotData: const FlDotData(
+                          show: false,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            if (comparisons.length > 0)
-              PolygonWaveform(
-                samples: comparisons,
-                height: 200,
-                width: MediaQuery.of(context).size.width,
+            Expanded(
+              child: LineChart(
+                LineChartData(
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: comparisons
+                          .mapIndexed((index, v) => FlSpot(index.toDouble(), v))
+                          .toList(),
+                      isCurved: false,
+                      dotData: const FlDotData(
+                        show: false,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+            ),
             Text("active $active")
           ],
         )),

@@ -18,12 +18,12 @@ export const sendSmsHandler = async (event) => {
     Subject: 'FireAlert'};
 
     const command = new PublishCommand(input);
-    const response = await client.send(command);
+    const responseSns = await client.send(command);
 
-    console.info('Response from SNS: ', response);
+    console.info('Response from SNS: ', responseSns);
 
-    response = {
-        statusCode: response?.$metadata?.httpStatusCode
+    const response = {
+        statusCode: responseSns?.$metadata?.httpStatusCode
     };
 
     return response;
