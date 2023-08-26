@@ -6,14 +6,14 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:fftea/fftea.dart';
 
-Stream<Int16List> chunkStream(Stream<Int16List> source, int chunkSize) async* {
+Stream<Uint8List> chunkStream(Stream<Uint8List> source, int chunkSize) async* {
   final reader = ChunkedStreamReader(source);
   while (true) {
     final chunk = await reader.readBytes(chunkSize);
     if (chunk.isEmpty) {
       break; // End of source stream
     }
-    yield Int16List.fromList(chunk);
+    yield Uint8List.fromList(chunk);
   }
 }
 
@@ -52,10 +52,11 @@ class MyRecorder {
         chunkStream(recordingDataController.stream.map((buffer) {
       if (buffer is FoodData) {
         final data = buffer.data;
-        if (data != null) return data.buffer.asInt16List();
+        if (data != null) return data;
       }
-      return Int16List(0);
-    }), chunkSize);
+      return Uint8List(0);
+    }), chunkSize * 2)
+            .map((s) => s.buffer.asInt16List());
 
     await recorder.startRecorder(
       toStream: recordingDataController.sink,

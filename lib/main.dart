@@ -1,19 +1,3 @@
-/*import 'dart:async';
-import 'dart:math';
-import 'dart:typed_data';
-
-import 'package:async/async.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:collection/collection.dart';
-import 'package:flutter_audio_waveforms/flutter_audio_waveforms.dart';
-import 'package:flutter_sound/flutter_sound.dart';
-import 'package:moving_average/moving_average.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:fftea/fftea.dart';
-import 'package:fl_chart/fl_chart.dart';
-// */
-
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -23,6 +7,9 @@ import 'components/listenForFire.dart';
 import "components/recordSoundSample.dart";
 import "components/lineplot.dart";
 import 'utils/SoundRecorder.dart';
+import 'utils/smsRequest.dart';
+
+const ignoreLowestFreqs = 200;
 
 final simpleMovingAverageSmall = MovingAverage<double>(
   averageType: AverageType.simple,
@@ -43,10 +30,12 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   final recorder = MyRecorder(chunkSize: 2048);
+  final smsRequest = SmsRequest();
 
   List<double> sample = List.empty();
   List<double> scan = List.empty();
 
+  bool closing = false;
   List<double> rawComparisons = <double>[];
   List<double> comparisons = <double>[];
   bool active = false;
@@ -65,15 +54,25 @@ class _MyAppState extends State<MyApp> {
               ListenForFire(
                 recorder: recorder,
                 newScan: newScan,
+                onStart: onStart,
               ),
               MyLinePlot(data: sample),
               MyLinePlot(data: scan),
               MyLinePlot(data: comparisons),
+              Text("$active"),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void onStart() {
+    setState(() {
+      closing = true;
+      comparisons = List.empty();
+      rawComparisons = List.empty();
+    });
   }
 
   void onNewSample(List<double>? sample) {
@@ -82,16 +81,10 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  final ignoreLowestFreqs = 50;
-
-  void newScan(List<double>? scan) {
+  Future<void> newScan(List<double>? scan) async {
     double v = 0;
     if (scan != null) {
-      double m0 = 0;
-      for (int i = ignoreLowestFreqs; i < scan.length; ++i) {
-        m0 += scan[i];
-      }
-      m0 /= (scan.length - ignoreLowestFreqs);
+      final median = (List.of(scan)..sort())[(scan.length * 0.30).toInt()];
 
       double v2 = 0;
       for (int i = ignoreLowestFreqs; i < scan.length; ++i) {
@@ -100,7 +93,7 @@ class _MyAppState extends State<MyApp> {
       v2 = sqrt(v2 / (scan.length - ignoreLowestFreqs));
 
       for (int i = ignoreLowestFreqs; i < scan.length; ++i) {
-        v += (scan[i] - m0) * sample[i];
+        v += (scan[i] - median) * sample[i];
       }
       v /= (scan.length - ignoreLowestFreqs);
     }
@@ -112,11 +105,26 @@ class _MyAppState extends State<MyApp> {
 
     final smoothSmall = simpleMovingAverageSmall(nextRawComparisons);
 
+    final fireSignalDetected = (comparisons.lastOrNull ?? 0) > 1e9;
+
     setState(() {
       this.scan = scan ?? List.empty();
       rawComparisons = nextRawComparisons;
       comparisons = smoothSmall;
-      active = (comparisons.lastOrNull ?? 0) > 200;
+      active = fireSignalDetected;
     });
+
+    if (fireSignalDetected) {
+      await recorder.stop();
+      try {
+        if (!closing) {
+          closing = true;
+          final response = await smsRequest.send("0041762266149");
+          print("DID IT $response");
+        }
+      } catch (err) {
+        print(err);
+      }
+    }
   }
 }
