@@ -46,6 +46,7 @@ dependencies:
   fftea: ^1.4.1
   moving_average: ^0.3.1
   fl_chart: ^0.63.0
+  shared_preferences: ^2.2.0
 
 dev_dependencies:
   flutter_test:
