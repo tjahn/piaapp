@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/flutter_audio_waveforms.dart';
 import 'package:flutter_sound/flutter_sound.dart';
+import 'package:moving_average/moving_average.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:fftea/fftea.dart';
 
@@ -27,6 +28,13 @@ final fft = FFT(chunkSize);
 final fftWindow = Window.hanning(chunkSize);
 final stft = STFT(chunkSize, fftWindow);
 
+final simpleMovingAverageSmall = MovingAverage<double>(
+  averageType: AverageType.simple,
+  windowSize: 10,
+  partialStart: true,
+  getValue: (num n) => n,
+  add: (List<num> data, num value) => 1.0 * value,
+);
 void main() => runApp(const MyApp());
 
 class MyRecorder {
@@ -61,7 +69,7 @@ class MyRecorder {
       toStream: recordingDataController.sink,
       codec: Codec.pcm16,
       numChannels: 1,
-      sampleRate: 32000,
+      sampleRate: 16000,
     );
 
     return chunkedReader;
@@ -80,7 +88,9 @@ class _MyAppState extends State<MyApp> {
 
   Float64List? sample;
   Float64List? spec;
+  List<double> rawComparisons = <double>[];
   List<double> comparisons = <double>[];
+  bool active = false;
 
   @override
   void initState() {
@@ -114,26 +124,33 @@ class _MyAppState extends State<MyApp> {
                   await recorder.stop();
 
                   final spec = specs.first;
-                  specs.forEach((dd) {
+                  for (int j = 1; j < specs.length; ++j) {
                     for (int i = 0; i < spec.length; ++i) {
-                      spec[i] += dd[i];
+                      spec[i] += specs[j][i];
                     }
-                  });
+                  }
 
                   final median = (List.of(spec)
                         ..sort((a, b) => a.compareTo(b)))[
                       (spec.length * 0.25).toInt()];
-                  for (int i = 0; i < spec.length; ++i) spec[i] -= median;
+                  for (int i = 0; i < spec.length; ++i) {
+                    spec[i] -= median;
+                  }
 
-                  for (int i = 0; i < 100; ++i) spec[i] = 0;
+                  for (int i = 0; i < 100; ++i) {
+                    spec[i] = 0;
+                  }
 
                   double sigma = 0;
-                  for (int i = 0; i < spec.length; ++i)
+                  for (int i = 0; i < spec.length; ++i) {
                     sigma += spec[i] * spec[i];
+                  }
                   sigma = sqrt(sigma / spec.length);
                   sigma = 1;
 
-                  for (int i = 0; i < spec.length; ++i) spec[i] /= sigma * 0.01;
+                  for (int i = 0; i < spec.length; ++i) {
+                    spec[i] /= sigma * 0.01;
+                  }
                   setState(() {
                     sample = spec;
                   });
@@ -146,7 +163,11 @@ class _MyAppState extends State<MyApp> {
                 child: const Text("record"),
                 onPressed: () async {
                   final chunkedReader = await recorder.start();
+
+                  int counter = 0;
                   chunkedReader.listen((event) {
+                    counter++;
+                    if (counter % 2 != 0) return;
                     final d = event.buffer.asInt16List();
                     stft.run(d.map((e) => 1.0 * e).toList(), (p0) {
                       final data = p0.discardConjugates().magnitudes();
@@ -174,12 +195,18 @@ class _MyAppState extends State<MyApp> {
                         v /= v2;
                       }
 
+                      final nextRawComparisons = rawComparisons.sublist(
+                          max(0, rawComparisons.length - 200),
+                          rawComparisons.length)
+                        ..add(v);
+
+                      final smoothSmall =
+                          simpleMovingAverageSmall(nextRawComparisons);
+
                       setState(() {
                         spec = data;
-                        comparisons.add(v);
-                        comparisons = comparisons.sublist(
-                            max(0, comparisons.length - 200),
-                            comparisons.length);
+                        rawComparisons = nextRawComparisons;
+                        comparisons = smoothSmall;
                       });
                     });
                   });
@@ -201,14 +228,17 @@ class _MyAppState extends State<MyApp> {
             if (sample != null)
               PolygonWaveform(
                 samples: sample!,
-                height: 200,
+                height: 100,
                 width: MediaQuery.of(context).size.width,
               ),
             if (spec != null)
-              PolygonWaveform(
-                samples: spec!,
-                height: 200,
-                width: MediaQuery.of(context).size.width,
+              Container(
+                color: Color.fromRGBO(0, 0, 0, 0.1),
+                child: PolygonWaveform(
+                  samples: spec!,
+                  height: 150,
+                  width: MediaQuery.of(context).size.width,
+                ),
               ),
             if (comparisons.length > 0)
               PolygonWaveform(
@@ -216,6 +246,7 @@ class _MyAppState extends State<MyApp> {
                 height: 200,
                 width: MediaQuery.of(context).size.width,
               ),
+            Text("active $active")
           ],
         )),
       ),
