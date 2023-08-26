@@ -137,6 +137,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.0"
+  fftea:
+    dependency: "direct main"
+    description:
+      name: fftea
+      sha256: bb63649c55b85d860114f08543475d316f5f834550ad94a93a2b0afee1ea2e26
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.1"
   file:
     dependency: transitive
     description:

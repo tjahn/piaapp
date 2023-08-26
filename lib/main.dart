@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:fftea/fftea.dart';
 
 Stream<Uint8List> chunkStream(Stream<Uint8List> source, int chunkSize) async* {
   final reader = ChunkedStreamReader(source);
@@ -25,6 +26,12 @@ Stream<Uint8List> chunkStream(Stream<Uint8List> source, int chunkSize) async* {
     yield Uint8List.fromList(chunk);
   }
 }
+
+const chunkSize = 1024;
+
+final fft = FFT(chunkSize);
+final stft = STFT(chunkSize, Window.hanning(chunkSize));
+final fftWindow = Window.hanning(chunkSize);
 
 void main() => runApp(const MyApp());
 
@@ -77,7 +84,7 @@ class _MyAppState extends State<MyApp> {
                     } else {
                       return Uint8List(0);
                     }
-                  }), 2048);
+                  }), chunkSize * 2);
 
                   chunkedReader.listen((event) {
                     setState(() {
@@ -91,7 +98,7 @@ class _MyAppState extends State<MyApp> {
                     numChannels: 1,
                     sampleRate: 16000,
                   );
-                  await Future.delayed(const Duration(seconds: 5));
+                  await Future.delayed(const Duration(seconds: 100));
                   await recorder.closeRecorder();
                   setState(() {
                     data = null;
@@ -99,9 +106,12 @@ class _MyAppState extends State<MyApp> {
                 },
               ),
             ),
-            if (data != null)
+            if (data != null && data?.length == chunkSize)
               PolygonWaveform(
-                samples: data!.map((e) => (1.0 * e)).toList(),
+                samples: fft
+                    .realFft(
+                        data!.mapIndexed((i, e) => (fftWindow[i] * e)).toList())
+                    .toRealArray(),
                 height: 300,
                 width: MediaQuery.of(context).size.width,
               ),
