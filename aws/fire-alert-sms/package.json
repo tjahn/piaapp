@@ -5,6 +5,7 @@
     "private": true,
     "dependencies": {
         "@aws-sdk/client-dynamodb": "^3.188.0",
+        "@aws-sdk/client-sns": "^3.398.0",
         "@aws-sdk/lib-dynamodb": "^3.188.0"
     },
     "devDependencies": {
@@ -27,4 +28,3 @@
         ]
     }
 }
-
