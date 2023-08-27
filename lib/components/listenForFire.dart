@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:fftea/fftea.dart';
 import 'package:flutter/material.dart';
 import 'package:moving_average/moving_average.dart';
 
+import '../main.dart';
 import '../utils/SoundRecorder.dart';
 
 final simpleMovingAverage = MovingAverage<double>(
@@ -19,11 +19,13 @@ final simpleMovingAverage = MovingAverage<double>(
 class ListenForFire extends StatefulWidget {
   final MyRecorder recorder;
   final Function(List<double>?) newScan;
+  final void Function() onStart;
 
   const ListenForFire({
     super.key,
     required this.recorder,
     required this.newScan,
+    required this.onStart,
   });
 
   @override
@@ -45,20 +47,38 @@ class ListenForFireState extends State<ListenForFire> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        recording
-            ? ElevatedButton(
-                onPressed: stopRecording,
-                child: const Text("stop"),
-              )
-            : ElevatedButton(
-                onPressed: startRecording,
-                child: const Text("Start"),
-              ),
+        ElevatedButton(
+          onPressed: () {
+            if (recording) {
+              stopRecording();
+            } else {
+              startRecording();
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            shape: const CircleBorder(),
+            padding: const EdgeInsets.all(20),
+            backgroundColor: recording ? Colors.red.shade300 : Colors.green,
+          ),
+          child: recording
+              ? const Icon(
+                  Icons.stop,
+                  color: Colors.white,
+                  size: 40,
+                )
+              : const Icon(
+                  Icons.play_arrow,
+                  color: Colors.white,
+                  size: 40,
+                ),
+        ),
       ],
     );
   }
 
   void startRecording() async {
+    widget.onStart();
+
     setState(() {
       recording = true;
     });
@@ -81,7 +101,7 @@ class ListenForFireState extends State<ListenForFire> {
             res[i] = max(0, res[i] - median);
           }
 
-          for (int i = 0; i < 50; ++i) {
+          for (int i = 0; i < ignoreLowestFreqs; ++i) {
             res[i] = 0;
           }
 

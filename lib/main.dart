@@ -1,19 +1,3 @@
-/*import 'dart:async';
-import 'dart:math';
-import 'dart:typed_data';
-
-import 'package:async/async.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:collection/collection.dart';
-import 'package:flutter_audio_waveforms/flutter_audio_waveforms.dart';
-import 'package:flutter_sound/flutter_sound.dart';
-import 'package:moving_average/moving_average.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:fftea/fftea.dart';
-import 'package:fl_chart/fl_chart.dart';
-// */
-
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -23,6 +7,9 @@ import 'components/listenForFire.dart';
 import "components/recordSoundSample.dart";
 import "components/lineplot.dart";
 import 'utils/SoundRecorder.dart';
+import 'utils/smsRequest.dart';
+
+const ignoreLowestFreqs = 200;
 
 final simpleMovingAverageSmall = MovingAverage<double>(
   averageType: AverageType.simple,
@@ -43,10 +30,12 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   final recorder = MyRecorder(chunkSize: 2048);
+  final smsRequest = SmsRequest();
 
   List<double> sample = List.empty();
   List<double> scan = List.empty();
 
+  bool closing = false;
   List<double> rawComparisons = <double>[];
   List<double> comparisons = <double>[];
   bool active = false;
@@ -65,15 +54,30 @@ class _MyAppState extends State<MyApp> {
               ListenForFire(
                 recorder: recorder,
                 newScan: newScan,
+                onStart: onStart,
               ),
               MyLinePlot(data: sample),
               MyLinePlot(data: scan),
               MyLinePlot(data: comparisons),
+              Container(
+                color: active
+                    ? const Color.fromRGBO(0, 255, 0, 0.2)
+                    : const Color.fromRGBO(0, 0, 0, 0),
+                child: Text("$active"),
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void onStart() {
+    setState(() {
+      closing = true;
+      comparisons = List.empty();
+      rawComparisons = List.empty();
+    });
   }
 
   void onNewSample(List<double>? sample) {
@@ -82,27 +86,44 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  final ignoreLowestFreqs = 50;
-
-  void newScan(List<double>? scan) {
+  Future<void> newScan(List<double>? scan) async {
     double v = 0;
     if (scan != null) {
-      double m0 = 0;
-      for (int i = ignoreLowestFreqs; i < scan.length; ++i) {
-        m0 += scan[i];
-      }
-      m0 /= (scan.length - ignoreLowestFreqs);
+      // interesing freq range
+      const from = 300;
+      const to = 500;
 
-      double v2 = 0;
-      for (int i = ignoreLowestFreqs; i < scan.length; ++i) {
-        v2 += scan[i] * scan[i];
+      // remove median
+      final median = (List.of(scan)..sort())[(scan.length * 0.50).toInt()];
+      for (int i = 0; i < scan.length; ++i) {
+        scan[i] = max(0, scan[i] - median);
       }
-      v2 = sqrt(v2 / (scan.length - ignoreLowestFreqs));
 
-      for (int i = ignoreLowestFreqs; i < scan.length; ++i) {
-        v += (scan[i] - m0) * sample[i];
+      // estimate energy
+      double e = 0;
+      for (int i = from; i < to; ++i) e += scan[i] * scan[i];
+      e = sqrt(e / (to - from));
+
+      // remove low freqs
+      for (int i = 0; i < ignoreLowestFreqs; ++i) {
+        scan[i] = 0;
+      }
+
+      // normalize
+      final std = sqrt(
+          scan.reduce((value, element) => value + element * element) /
+              scan.length);
+      for (int i = 0; i < scan.length; ++i) {
+        scan[i] /= std;
+      }
+
+      // estimate cos similar
+      v = 0;
+      for (int i = from; i < to; ++i) {
+        v += scan[i] * sample[i];
       }
       v /= (scan.length - ignoreLowestFreqs);
+      v *= e;
     }
 
     final nextRawComparisons = rawComparisons.sublist(
@@ -112,11 +133,27 @@ class _MyAppState extends State<MyApp> {
 
     final smoothSmall = simpleMovingAverageSmall(nextRawComparisons);
 
+    final fireSignalDetected =
+        comparisons.length > 20 && (comparisons.lastOrNull ?? 0) > 10000;
+
     setState(() {
       this.scan = scan ?? List.empty();
       rawComparisons = nextRawComparisons;
       comparisons = smoothSmall;
-      active = (comparisons.lastOrNull ?? 0) > 200;
+      active = fireSignalDetected;
     });
+
+    if (fireSignalDetected) {
+      //TODO  await recorder.stop();
+      try {
+        if (!closing) {
+          closing = true;
+          final response = await smsRequest.send("0041762266149");
+          print("DID IT $response");
+        }
+      } catch (err) {
+        print(err);
+      }
+    }
   }
 }
