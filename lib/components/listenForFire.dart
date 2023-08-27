@@ -47,15 +47,31 @@ class ListenForFireState extends State<ListenForFire> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        recording
-            ? ElevatedButton(
-                onPressed: stopRecording,
-                child: const Text("stop"),
-              )
-            : ElevatedButton(
-                onPressed: startRecording,
-                child: const Text("Start"),
-              ),
+        ElevatedButton(
+          onPressed: () {
+            if (recording) {
+              stopRecording();
+            } else {
+              startRecording();
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            shape: const CircleBorder(),
+            padding: const EdgeInsets.all(20),
+            backgroundColor: recording ? Colors.red.shade300 : Colors.green,
+          ),
+          child: recording
+              ? const Icon(
+                  Icons.stop,
+                  color: Colors.white,
+                  size: 40,
+                )
+              : const Icon(
+                  Icons.play_arrow,
+                  color: Colors.white,
+                  size: 40,
+                ),
+        ),
       ],
     );
   }

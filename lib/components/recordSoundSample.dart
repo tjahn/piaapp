@@ -10,19 +10,19 @@ import 'package:piaapp/main.dart';
 
 import '../utils/SoundRecorder.dart';
 
-final simpleMovingAverage = MovingAverage<double>(
-  averageType: AverageType.simple,
-  windowSize: 2,
-  partialStart: true,
-  getValue: (double n) => n,
-  add: (List<double> data, num value) => 1.0 * value,
-);
-
 class RecordSoundSample extends StatefulWidget {
   final MyRecorder recorder;
   final Function(List<double>?) newMeanCallback;
 
-  const RecordSoundSample({
+  final simpleMovingAverage = MovingAverage<double>(
+    averageType: AverageType.simple,
+    windowSize: 3,
+    partialStart: true,
+    getValue: (double n) => n,
+    add: (List<double> data, num value) => 1.0 * value,
+  );
+
+  RecordSoundSample({
     super.key,
     required this.recorder,
     required this.newMeanCallback,
@@ -131,7 +131,11 @@ class RecordSoundSampleState extends State<RecordSoundSample> {
         res[i] = 0;
       }
 
-      widget.newMeanCallback(simpleMovingAverage(res));
+      final v = sqrt(res.reduce((value, element) => value + element * element) /
+          res.length);
+      for (int i = 0; i < res.length; ++i) res[i] /= v;
+
+      widget.newMeanCallback(widget.simpleMovingAverage(res));
     }
   }
 
