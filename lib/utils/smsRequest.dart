@@ -6,6 +6,12 @@ class SmsRequest {
   SmsRequest() {}
 
   Future<String> send(String phoneNumber) async {
+    if (phoneNumber.length < 5) return "";
+
+    if (phoneNumber[0] == "0" && phoneNumber[1] == 0) {
+      phoneNumber = "+" + phoneNumber.substring(2);
+    }
+
     final Uri url = Uri.parse(
         'https://xyycvixsvh.execute-api.eu-central-1.amazonaws.com/Prod/sms');
     final headers = {'Content-Type': 'application/json'};
