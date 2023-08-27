@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:fftea/fftea.dart';
 import 'package:flutter/material.dart';
 import 'package:moving_average/moving_average.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../main.dart';
 import '../utils/SoundRecorder.dart';
@@ -38,11 +39,6 @@ class ListenForFireState extends State<ListenForFire> {
   bool recording = false;
 
   @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -57,7 +53,7 @@ class ListenForFireState extends State<ListenForFire> {
           },
           style: ElevatedButton.styleFrom(
             shape: const CircleBorder(),
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(40),
             backgroundColor: recording ? Colors.red.shade300 : Colors.green,
           ),
           child: recording

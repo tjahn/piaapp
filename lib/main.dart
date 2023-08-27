@@ -2,10 +2,12 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:moving_average/moving_average.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'components/listenForFire.dart';
 import "components/recordSoundSample.dart";
 import "components/lineplot.dart";
+import 'screens/settings.dart';
 import 'utils/SoundRecorder.dart';
 import 'utils/smsRequest.dart';
 
@@ -40,10 +42,71 @@ class _MyAppState extends State<MyApp> {
   List<double> comparisons = <double>[];
   bool active = false;
 
+  String phone = "";
+  double threshold = 10000;
+
+  final GlobalKey<ScaffoldState> _key = GlobalKey(); // Create a key
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) async {
+      final p = prefs.getString("phone") ?? "";
+      final t = prefs.getDouble("threshold") ?? 10000;
+      setState(() {
+        phone = p;
+        threshold = t;
+      });
+    });
+  }
+
+  Future<void> setValues(String p, double th) async {
+    setState(() {
+      this.phone = p;
+      this.threshold = th;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setDouble("threshold", th);
+    prefs.setString("phone", p);
+  }
+
   @override
   Widget build(Object context) {
     return MaterialApp(
       home: Scaffold(
+        key: _key,
+        drawer: Builder(
+          builder: (context) => // Ensure Scaffold is in context
+              SettingsScreen(
+            onClose: (String phone, String threshold) {
+              print("GOT $phone $threshold");
+              Scaffold.of(context).closeDrawer();
+              final double thr = double.parse(threshold);
+              setValues(phone, thr);
+            },
+            onChange: (String phone, String threshold) {
+              print("GOT $phone $threshold");
+              final double thr = double.parse(threshold);
+              setValues(phone, thr);
+            },
+            initialPhone: phone,
+            initialThreshold: "${threshold.toInt()}",
+          ),
+        ),
+        appBar: AppBar(
+          leading: Container(),
+          actions: [
+            Builder(
+              builder: (context) => // Ensure Scaffold is in context
+                  IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () {
+                  Scaffold.of(context).openDrawer();
+                },
+              ),
+            ),
+          ],
+        ),
         body: SafeArea(
           child: Column(
             children: [
@@ -51,13 +114,15 @@ class _MyAppState extends State<MyApp> {
                 recorder: recorder,
                 newMeanCallback: onNewSample,
               ),
+              Container(
+                height: 150,
+                child: MyLinePlot(data: sample),
+              ),
               ListenForFire(
                 recorder: recorder,
                 newScan: newScan,
                 onStart: onStart,
               ),
-              MyLinePlot(data: sample),
-              MyLinePlot(data: scan),
               MyLinePlot(data: comparisons),
               Container(
                 color: active
@@ -134,7 +199,7 @@ class _MyAppState extends State<MyApp> {
     final smoothSmall = simpleMovingAverageSmall(nextRawComparisons);
 
     final fireSignalDetected =
-        comparisons.length > 20 && (comparisons.lastOrNull ?? 0) > 10000;
+        comparisons.length > 20 && (comparisons.lastOrNull ?? 0) > threshold;
 
     setState(() {
       this.scan = scan ?? List.empty();
@@ -144,11 +209,11 @@ class _MyAppState extends State<MyApp> {
     });
 
     if (fireSignalDetected) {
-      //TODO  await recorder.stop();
+      await recorder.stop();
       try {
-        if (!closing) {
+        if (!closing && phone.length > 3) {
           closing = true;
-          final response = await smsRequest.send("0041762266149");
+          final response = await smsRequest.send(phone);
           print("DID IT $response");
         }
       } catch (err) {

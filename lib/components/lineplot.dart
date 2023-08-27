@@ -24,11 +24,6 @@ class MyLinePlot extends StatefulWidget {
 
 class MyLinePlotState extends State<MyLinePlot> {
   @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Expanded(
       child: LineChart(
