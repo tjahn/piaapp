@@ -84,11 +84,20 @@ class _MyAppState extends State<MyApp> {
   Future<void> newScan(List<double>? scan) async {
     double v = 0;
     if (scan != null) {
+      // interesing freq range
+      const from = 300;
+      const to = 500;
+
       // remove median
       final median = (List.of(scan)..sort())[(scan.length * 0.50).toInt()];
       for (int i = 0; i < scan.length; ++i) {
         scan[i] = max(0, scan[i] - median);
       }
+
+      // estimate energy
+      double e = 0;
+      for (int i = from; i < to; ++i) e += scan[i] * scan[i];
+      e = sqrt(e / (to - from));
 
       // remove low freqs
       for (int i = 0; i < ignoreLowestFreqs; ++i) {
@@ -103,13 +112,13 @@ class _MyAppState extends State<MyApp> {
         scan[i] /= std;
       }
 
-// estimate cos similar
-      for (int i = ignoreLowestFreqs; i < scan.length; ++i) {
+      // estimate cos similar
+      v = 0;
+      for (int i = from; i < to; ++i) {
         v += scan[i] * sample[i];
       }
       v /= (scan.length - ignoreLowestFreqs);
-
-      v *= std;
+      v *= e;
     }
 
     final nextRawComparisons = rawComparisons.sublist(
@@ -120,7 +129,7 @@ class _MyAppState extends State<MyApp> {
     final smoothSmall = simpleMovingAverageSmall(nextRawComparisons);
 
     final fireSignalDetected =
-        comparisons.length > 20 && (comparisons.lastOrNull ?? 0) > 20000;
+        comparisons.length > 20 && (comparisons.lastOrNull ?? 0) > 10000;
 
     setState(() {
       this.scan = scan ?? List.empty();
