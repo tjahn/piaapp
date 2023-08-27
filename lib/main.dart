@@ -139,7 +139,7 @@ class _MyAppState extends State<MyApp> {
 
   void onStart() {
     setState(() {
-      closing = true;
+      closing = false;
       comparisons = List.empty();
       rawComparisons = List.empty();
     });
@@ -215,9 +215,11 @@ class _MyAppState extends State<MyApp> {
           closing = true;
           final response = await smsRequest.send(phone);
           print("DID IT $response");
+        } else {
+          print("SKIP SMS $closing $phone");
         }
       } catch (err) {
-        print(err);
+        print("Error $err");
       }
     }
   }
