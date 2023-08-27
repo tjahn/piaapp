@@ -84,18 +84,32 @@ class _MyAppState extends State<MyApp> {
   Future<void> newScan(List<double>? scan) async {
     double v = 0;
     if (scan != null) {
-      final median = (List.of(scan)..sort())[(scan.length * 0.30).toInt()];
-
-      double v2 = 0;
-      for (int i = ignoreLowestFreqs; i < scan.length; ++i) {
-        v2 += scan[i] * scan[i];
+      // remove median
+      final median = (List.of(scan)..sort())[(scan.length * 0.50).toInt()];
+      for (int i = 0; i < scan.length; ++i) {
+        scan[i] = max(0, scan[i] - median);
       }
-      v2 = sqrt(v2 / (scan.length - ignoreLowestFreqs));
 
+      // remove low freqs
+      for (int i = 0; i < ignoreLowestFreqs; ++i) {
+        scan[i] = 0;
+      }
+
+      // normalize
+      final std = sqrt(
+          scan.reduce((value, element) => value + element * element) /
+              scan.length);
+      for (int i = 0; i < scan.length; ++i) {
+        scan[i] /= std;
+      }
+
+// estimate cos similar
       for (int i = ignoreLowestFreqs; i < scan.length; ++i) {
-        v += (scan[i] - median) * sample[i];
+        v += scan[i] * sample[i];
       }
       v /= (scan.length - ignoreLowestFreqs);
+
+      v *= std;
     }
 
     final nextRawComparisons = rawComparisons.sublist(
@@ -105,7 +119,8 @@ class _MyAppState extends State<MyApp> {
 
     final smoothSmall = simpleMovingAverageSmall(nextRawComparisons);
 
-    final fireSignalDetected = (comparisons.lastOrNull ?? 0) > 1e9;
+    final fireSignalDetected =
+        comparisons.length > 20 && (comparisons.lastOrNull ?? 0) > 20000;
 
     setState(() {
       this.scan = scan ?? List.empty();
@@ -115,7 +130,7 @@ class _MyAppState extends State<MyApp> {
     });
 
     if (fireSignalDetected) {
-      await recorder.stop();
+      // TODO await recorder.stop();
       try {
         if (!closing) {
           closing = true;
