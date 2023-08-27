@@ -59,7 +59,12 @@ class _MyAppState extends State<MyApp> {
               MyLinePlot(data: sample),
               MyLinePlot(data: scan),
               MyLinePlot(data: comparisons),
-              Text("$active"),
+              Container(
+                color: active
+                    ? const Color.fromRGBO(0, 255, 0, 0.2)
+                    : const Color.fromRGBO(0, 0, 0, 0),
+                child: Text("$active"),
+              ),
             ],
           ),
         ),
@@ -139,7 +144,7 @@ class _MyAppState extends State<MyApp> {
     });
 
     if (fireSignalDetected) {
-      // TODO await recorder.stop();
+      //TODO  await recorder.stop();
       try {
         if (!closing) {
           closing = true;
